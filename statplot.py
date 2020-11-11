@@ -133,7 +133,6 @@ class Chi2Independence():
         
         stdres_sig_sorted = self.df_freq.sort_values(hue_var)['sig']
         
-        plt.figure()
         barplot = sns.barplot(x=x_var, y='Frequency', hue=hue_var,data=self.df_freq)
         barplot.set_xticklabels(barplot.get_xticklabels(), rotation=45)
         barplot.get_xticklabels()
@@ -145,7 +144,6 @@ class Chi2Independence():
                 barplot.text(p.get_x() + p.get_width() / 2., p.get_height(),'*', ha='center')
         
         plt.legend(loc='center left', bbox_to_anchor=(1.0, 0.5), ncol=1)
-        
         plt.tight_layout()
         
         if dst_dir is not None:
