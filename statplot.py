@@ -5,15 +5,10 @@ from scipy.stats import norm
 import seaborn as sns
 import matplotlib.pyplot as plt
 
-# FIXME: Setting a title should not be mandatory.
-# FIXME: When testing residuals for significance there should be an option to correct
-# for multiple comparisons.
 class Chi2Independence():
-    """Class to perform a Chi2 test of independence.
-    
-    Perform a Chi2 test of indepence. Additionally add `standardized` and
-    `adjusted standardized` residuals to the output of the Chi2 test.
-    
+    """Class for performing a Chi2 test of independence, additional post-hoc tests 
+    and for plotting the results.
+        
     Parameters
     ----------
     crosstab: pd.DataFrame
@@ -23,50 +18,62 @@ class Chi2Independence():
         
         See: https://pandas.pydata.org/pandas-docs/version/0.23.4/generated/pandas.crosstab.html
     
+    correction: bool, optional
+        If True, and the degrees of freedom is 1, apply Yates’ correction 
+        for continuity. The effect of the correction is to adjust each 
+        observed value by 0.5 towards the corresponding expected value.
+        See documentation of :func:`scipy.stats.chi2_contigency`
+        
+    lambda_: float or str, optional
+        By default, the statistic computed in this test is Pearson’s 
+        chi-squared statistic. lambda_ allows a statistic from the 
+        Cressie-Read power divergence family to be used instead. 
+        See power_divergence for details. See documentation of 
+        :func:`scipy.stats.chi2_contigency`
+    
+    shift_zeros: bool, optional
+        This value is passed over to :func:`statsmodels.stats.contingency_tables.Table`
+        If True and any cell count is zero, add 0.5 to all values in the table.
+        See documentation of `statsmodels.stats.contingency_tables.Table`
+    
     """
-    def __init__(self,crosstab):
+    def __init__(self,crosstab,correction=True,lambda_=None,shift_zeros=False):
         self.crosstab = crosstab
+        self.correction = correction
+        self.lambda_ = lambda_
+        self.shift_zeros = shift_zeros
         
-    def chi2_ind(self,correction=False,lambda_=None):
-        """Perform a chi2_contingency test. 
-        
-        Also calculate standardized and adjusted standardized residuals. 
-        These are added to the output of chi2_contingency.
-        
-        Parameters
-        ----------
-        correction: bool, optional
-            See documentation of `scipy.stats.chi2_contigency`
-        
-        lambda_: float or str, optional
-            See documentation of `scipy.stats.chi2_contigency`
-        
+    def chi2_ind(self):
+        """Perform a Chi2 test of independence. This is a wrapper function around
+        :func:`scipy.stats.chi2_contingency`. `Standardized` and `adjusted 
+        standardized` residuals are added to the output of the Chi2 test.
+                
         Note
         ----
-        This function is an addition to chi2 test of indepence provided by `scipy.stats.chi2_contingency`
-        https://docs.scipy.org/doc/scipy/reference/generated/scipy.stats.chi2_contingency.html
+        For more information see https://docs.scipy.org/doc/scipy/reference/generated/scipy.stats.chi2_contingency.html
         """
-        self.results_chi2_ = chi2_contingency(self.crosstab,
-                                              correction=correction,
-                                              lambda_=lambda_)
-        self._residuals()
+
+        self.results_chi2_ = chi2_contingency(observed=self.crosstab,
+                                              correction=self.correction,
+                                              lambda_=self.lambda_)
+        self._get_residuals()
         self.results = self.results_chi2_ + (self._residuals,) + (self._stdres,)
+        
         return self.results
         
-    def _residuals(self,shift_zeros=False):
-        self._table = sm.stats.Table(self.crosstab,shift_zeros=shift_zeros)
+    def _get_residuals(self):
+        self._table = sm.stats.Table(self.crosstab,shift_zeros=self.shift_zeros)
         self._residuals = self._table.resid_pearson
         self._stdres = self._table.standardized_resids
         
     def _test_single_residual(self,residual,upper_z,lower_z):
-          
-          if residual < lower_z:
-            return True
-          elif residual > upper_z:
+          if residual < lower_z or residual > upper_z:
             return True
           else:
             return False
-    
+        
+    # TO-DO: When testing residuals for significance there should be an option to correct
+    # for multiple comparisons.
     def test_residuals(self):
         """Test adjusted residuals for significance.
         
@@ -81,8 +88,8 @@ class Chi2Independence():
         
         Note
         ----
-        This method automatically calls chi2_ind() first if this
-        method has not yet been called by user.
+        This method automatically calls :func:`~statplot.Chi2Independence.chi2_ind()` 
+        if this method has not been called by the user.
         
         """
         if not hasattr(self,'results'):
@@ -107,44 +114,47 @@ class Chi2Independence():
         
         return self.df_freq
     
-    def plot(self,x_var,hue_var,title,dst_dir=None):
-        """Plot results of Chi2 test of independence as barplot.
+    def plot(self,x,hue,title=None,dst_dir=None,**kwargs):
+        """Plot results of Chi2 test of independence as a barplot.
         
         Parameters
         ----------
-        x_var: str
+        x: str
             Name of the variable which should be put on the x-axis.
             
-        hue_var: str
-            Name of the variable which responsible for hueing.
+        hue: str
+            Name of the variable which is responsible for hueing.
         
         dst_dir: str (default=None)
             A string providing the path to the destination directory
             where the barplot should be saved. If `None` plot will not be saved.
         
+        kwargs: key, value mappings
+            Other keyword arguments are passed through to seaborn.barplot
+        
         Note
         ----
-        This method automatically calls test_residuals() if this method
-        has not been called by the user.
+        This method automatically calls :func:`~statplot.Chi2Independence.test_residuals()` 
+        if this method has not been called by the user.
             
         """
         if not hasattr(self,'df_freq'):
             self.test_residuals()
         
-        stdres_sig_sorted = self.df_freq.sort_values(hue_var)['sig']
+        barplot = sns.barplot(data=self.df_freq,x=x,y='Frequency',hue=hue,**kwargs)
         
-        barplot = sns.barplot(x=x_var, y='Frequency', hue=hue_var,data=self.df_freq)
-        barplot.set_xticklabels(barplot.get_xticklabels(), rotation=45)
-        barplot.get_xticklabels()
-        barplot.set_title(title)
+        if title:
+            barplot.set_title(title)
+        
+        # add significance asterisks
+        stdres_sig_sorted = self.df_freq.sort_values(hue)['sig']
         
         for p,sig in zip(barplot.patches,stdres_sig_sorted):
-            
             if sig == True:
-                barplot.text(p.get_x() + p.get_width() / 2., p.get_height(),'*', ha='center')
-        
-        plt.legend(loc='center left', bbox_to_anchor=(1.0, 0.5), ncol=1)
-        plt.tight_layout()
-        
+                barplot.text(p.get_x()+p.get_width()/2.,p.get_height(),'*',ha='center')
+                
         if dst_dir is not None:
             plt.savefig(dst_dir,dpi=600)
+            
+if __name__ == '__main__':
+    pass
