@@ -155,6 +155,8 @@ class Chi2Independence():
                 
         if dst_dir is not None:
             plt.savefig(dst_dir,dpi=600)
+
+        return barplot
             
 if __name__ == '__main__':
     pass
