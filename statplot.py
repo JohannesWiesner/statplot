@@ -152,6 +152,8 @@ class Chi2Independence():
         for p,sig in zip(barplot.patches,stdres_sig_sorted):
             if sig == True:
                 barplot.text(p.get_x()+p.get_width()/2.,p.get_height(),'*',ha='center')
+            else: 
+                barplot.text(p.get_x()+p.get_width()/2.,p.get_height(),'ns',ha='center')
                 
         if dst_dir is not None:
             plt.savefig(dst_dir,dpi=600)
