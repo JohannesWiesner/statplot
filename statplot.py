@@ -596,6 +596,7 @@ class Chi2Independence:
         display_complementary=True,
         figsize=(10, 6),
         palette=None,
+        ax=None,
         **kwargs,
     ):
         """
@@ -666,7 +667,12 @@ class Chi2Independence:
             .reset_index(name="_value")
         )
 
-        fig, ax = plt.subplots(figsize=figsize)
+        created_fig = ax is None
+
+        if created_fig:
+            fig, ax = plt.subplots(figsize=figsize)
+        else:
+            fig = ax.figure
 
         sns.barplot(
             data=df_plot,
@@ -778,7 +784,9 @@ class Chi2Independence:
         )
 
         sns.despine(ax=ax)
-        fig.tight_layout()
+
+        if created_fig:
+            fig.tight_layout()
 
         if dst_dir is not None:
             fig.savefig(
